@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ContextGrade custom layer — applied inside shadow DOM for content scripts */
+@layer components {
+  .cg-prompt {
+    @apply fixed bottom-6 right-6 z-[2147483647] font-sans;
+  }
+
+  .cg-card {
+    @apply bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 w-80;
+  }
+
+  .cg-badge {
+    @apply inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full;
+  }
+}

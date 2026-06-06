@@ -1,0 +1,59 @@
+{
+  "name": "contextgrade-extension",
+  "displayName": "ContextGrade",
+  "version": "0.1.0",
+  "description": "Decision memory layer for work applications — capture reasoning behind business decisions in Jira, Figma, and HubSpot.",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package"
+  },
+  "dependencies": {
+    "@plasmohq/messaging": "0.6.2",
+    "@plasmohq/storage": "1.9.3",
+    "plasmo": "0.89.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@plasmohq/parcel-config": "0.39.2",
+    "@types/chrome": "0.0.258",
+    "@types/node": "20.11.5",
+    "@types/react": "18.2.48",
+    "@types/react-dom": "18.2.18",
+    "autoprefixer": "10.4.17",
+    "postcss": "8.4.33",
+    "tailwindcss": "3.4.1",
+    "typescript": "5.3.3"
+  },
+  "manifest": {
+    "host_permissions": [
+      "https://*.atlassian.net/*",
+      "https://*.jira.com/*",
+      "https://www.figma.com/*",
+      "https://*.hubspot.com/*",
+      "https://*.salesforce.com/*",
+      "http://localhost:3000/*",
+      "https://app.contextgrade.com/*"
+    ],
+    "permissions": [
+      "storage",
+      "sidePanel",
+      "tabs",
+      "activeTab"
+    ],
+    "side_panel": {
+      "default_path": "sidepanel.html"
+    }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@parcel/watcher",
+      "@swc/core",
+      "esbuild",
+      "lmdb",
+      "msgpackr-extract",
+      "sharp"
+    ]
+  }
+}
