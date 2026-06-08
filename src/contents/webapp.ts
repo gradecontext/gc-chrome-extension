@@ -1,5 +1,6 @@
 import type { PlasmoCSConfig } from "plasmo"
 import type { SupabaseRawSession } from "~types"
+import { isChromeContextValid } from "~lib/utils"
 
 export const config: PlasmoCSConfig = {
   matches: [
@@ -12,7 +13,6 @@ export const config: PlasmoCSConfig = {
 
 const log = (...args: unknown[]) => console.log("[CG:webapp]", ...args)
 
-// ─── Storage key (must match STORAGE_KEYS.RAW_SESSION in constants.ts) ────────
 const RAW_SESSION_KEY = "cg_raw_session"
 
 // ─── Session parsing ──────────────────────────────────────────────────────────
@@ -46,25 +46,45 @@ function isAuthKey(key: string | null): boolean {
 }
 
 // ─── Write session directly to chrome.storage.local ──────────────────────────
-// Bypasses chrome.runtime.sendMessage entirely — no service worker connection
-// needed. The background listens via chrome.storage.onChanged and validates.
 
 let sessionWritten = false
 
 function storeSession(session: SupabaseRawSession, source: string) {
   if (sessionWritten) return
+  if (!isChromeContextValid()) return
   sessionWritten = true
 
   log(`storing raw session (source: ${source}) expires:`, new Date(session.expires_at * 1000).toISOString())
 
-  chrome.storage.local.set({ [RAW_SESSION_KEY]: session }, () => {
-    if (chrome.runtime.lastError) {
-      log("chrome.storage.local.set failed:", chrome.runtime.lastError.message)
-      sessionWritten = false
-    } else {
-      log("raw session written to storage — background will pick it up via onChanged")
-    }
-  })
+  try {
+    const cr = (globalThis as any).chrome
+    cr.storage.local.set({ [RAW_SESSION_KEY]: session }, () => {
+      try {
+        if (cr.runtime.lastError) {
+          log("chrome.storage.local.set failed:", cr.runtime.lastError.message)
+          sessionWritten = false
+        } else {
+          log("raw session written to storage — background will pick it up via onChanged")
+        }
+      } catch {
+        // lastError access itself can throw after invalidation
+        sessionWritten = false
+      }
+    })
+  } catch (e) {
+    log("storeSession threw (context likely invalidated):", e)
+    sessionWritten = false
+  }
+}
+
+function clearSession() {
+  sessionWritten = false
+  if (!isChromeContextValid()) return
+  try {
+    ;(globalThis as any).chrome.storage.local.remove(RAW_SESSION_KEY)
+  } catch {
+    // context invalidated — nothing to do
+  }
 }
 
 // ─── Scan localStorage for existing session ───────────────────────────────────
@@ -88,7 +108,6 @@ function scanLocalStorage(): SupabaseRawSession | null {
 
 // ─── Listeners ────────────────────────────────────────────────────────────────
 
-// 1. CustomEvent from webapp's onAuthStateChange (same-tab, immediate)
 window.addEventListener("cg:auth", (e: Event) => {
   const detail = (e as CustomEvent<unknown>).detail
   log("received cg:auth CustomEvent")
@@ -98,11 +117,9 @@ window.addEventListener("cg:auth", (e: Event) => {
 
 window.addEventListener("cg:signout", () => {
   log("received cg:signout — clearing raw session")
-  sessionWritten = false
-  chrome.storage.local.remove(RAW_SESSION_KEY)
+  clearSession()
 })
 
-// 2. Cross-tab storage event (login in another tab)
 window.addEventListener("storage", (e) => {
   if (!isAuthKey(e.key) || !e.newValue) return
   log(`cross-tab storage event for key "${e.key}"`)
@@ -118,10 +135,12 @@ const existing = scanLocalStorage()
 if (existing) {
   storeSession(existing, "initial-scan")
 } else {
-  // Short poll — catches onAuthStateChange firing just after document_start
   let polls = 0
   const poll = setInterval(() => {
-    if (++polls > 20 || sessionWritten) return clearInterval(poll)
+    if (!isChromeContextValid() || ++polls > 20 || sessionWritten) {
+      clearInterval(poll)
+      return
+    }
     const s = scanLocalStorage()
     if (s) { clearInterval(poll); storeSession(s, `poll-${polls}`) }
   }, 800)

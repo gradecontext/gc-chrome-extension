@@ -1,7 +1,9 @@
 import type { ExtensionMessage } from "~types"
+import { isChromeContextValid } from "~lib/utils"
 
 // Send a typed message to the background service worker
 export function sendToBackground(message: ExtensionMessage): Promise<unknown> {
+  if (!isChromeContextValid()) return Promise.resolve()
   return chrome.runtime.sendMessage(message)
 }
 

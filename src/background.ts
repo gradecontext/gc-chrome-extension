@@ -113,6 +113,16 @@ onMessage((message: ExtensionMessage, sender, sendResponse) => {
       break
     }
 
+    case "OPEN_PANEL": {
+      log("opening side panel (no event) for tab", sender.tab?.id)
+      const tabId = sender.tab?.id
+      if (tabId != null) {
+        chrome.sidePanel.open({ tabId }).catch((e) => err("open panel failed", e))
+      }
+      sendResponse({ ok: true })
+      break
+    }
+
     case "DISMISS_PROMPT": {
       log("prompt dismissed for event", message.payload.eventId)
       sendResponse({ ok: true })

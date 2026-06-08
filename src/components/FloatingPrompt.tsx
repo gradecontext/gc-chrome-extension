@@ -20,9 +20,10 @@ const SITE_LABELS = {
 interface FloatingPromptProps {
   event: DetectedEvent
   onDismiss: () => void
+  onSaved?: () => void
 }
 
-export function FloatingPrompt({ event, onDismiss }: FloatingPromptProps) {
+export function FloatingPrompt({ event, onDismiss, onSaved }: FloatingPromptProps) {
   const [visible, setVisible] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -49,7 +50,7 @@ export function FloatingPrompt({ event, onDismiss }: FloatingPromptProps) {
     await sendToBackground({ type: "OPEN_SIDE_PANEL", payload: event })
     setSaving(false)
     setVisible(false)
-    setTimeout(onDismiss, 300)
+    setTimeout(() => { onDismiss(); onSaved?.() }, 300)
   }
 
   const siteColor = SITE_COLORS[event.site]

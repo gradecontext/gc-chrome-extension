@@ -40,7 +40,8 @@
       "storage",
       "sidePanel",
       "tabs",
-      "activeTab"
+      "activeTab",
+      "alarms"
     ],
     "side_panel": {
       "default_path": "sidepanel.html"

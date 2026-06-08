@@ -58,6 +58,7 @@ export type DecisionStatus =
 export type ExtensionMessage =
   | { type: "DECISION_DETECTED"; payload: DetectedEvent }
   | { type: "OPEN_SIDE_PANEL"; payload: DetectedEvent }
+  | { type: "OPEN_PANEL" }
   | { type: "DISMISS_PROMPT"; payload: { eventId: string } }
   | { type: "SAVE_DECISION"; payload: DecisionPayload }
   | { type: "GET_PENDING_EVENT" }
