@@ -3,36 +3,37 @@
 export type SourceApp = "jira" | "figma" | "hubspot"
 
 // ─── Detected event from a content script ────────────────────────────────────
-// Maps to ObservedEvent in the backend schema.
 
 export interface DetectedEvent {
-  id: string // client-side uuid, correlates with ObservedEvent after sync
+  id: string
   site: SourceApp
-  eventType: string // e.g. "JIRA_ISSUE_STATUS_DONE", "FIGMA_COMMENT_RESOLVED"
+  eventType: string
   sourceUrl: string
-  externalEntityId?: string // Jira issue key, Figma comment ID, HubSpot deal ID
+  externalEntityId?: string
   title?: string
   description?: string
   rawData?: Record<string, unknown>
   occurredAt: string // ISO 8601
 }
 
-// ─── Decision payload — sent to backend ──────────────────────────────────────
-// Matches the Decision model; ObservedEvent is created alongside it.
+// ─── Decision payload — sent via SAVE_DECISION background message ─────────────
 
 export interface DecisionPayload {
-  observedEventClientId: string // local id from DetectedEvent.id
-  summary: string
-  rationale?: string
-  tags: string[]
   decisionType: DecisionType
+  contextKey?: string
+  summary: string          // "What was decided?" — becomes the decision title
+  rationale?: string       // "Why?" — sent inline as note.content alongside summary
+  subjectCompany?: {
+    name?: string
+    domain?: string
+  }
   sourceApp: SourceApp
   sourceUrl: string
   externalEntityId?: string
   occurredAt: string
 }
 
-// ─── Enums matching Prisma schema ────────────────────────────────────────────
+// ─── Enums matching backend schema ───────────────────────────────────────────
 
 export type DecisionType =
   | "DISCOUNT"
@@ -53,6 +54,28 @@ export type DecisionStatus =
   | "EXPIRED"
   | "ESCALATED"
 
+export type ReviewAction = "approve" | "reject" | "escalate" | "override"
+
+// ─── Contexts (dropdown options) ──────────────────────────────────────────────
+
+export interface DecisionContext {
+  id: string
+  key: string
+  name: string
+  description: string | null
+  category: string
+  active: boolean
+}
+
+// ─── AI recommendation returned with every decision ───────────────────────────
+
+export interface DecisionRecommendation {
+  recommendation: "APPROVE" | "REJECT" | "ESCALATE"
+  confidence: "high" | "medium" | "low"
+  rationale: string[]
+  suggested_conditions: string[]
+}
+
 // ─── Messages passed between content scripts ↔ background ─────────────────
 
 export type ExtensionMessage =
@@ -60,13 +83,12 @@ export type ExtensionMessage =
   | { type: "OPEN_SIDE_PANEL"; payload: DetectedEvent }
   | { type: "OPEN_PANEL" }
   | { type: "DISMISS_PROMPT"; payload: { eventId: string } }
-  | { type: "SAVE_DECISION"; payload: DecisionPayload }
+  | { type: "SAVE_DECISION"; payload: DecisionPayload; detectedEvent?: DetectedEvent }
   | { type: "GET_PENDING_EVENT" }
   | { type: "PENDING_EVENT_RESPONSE"; payload: DetectedEvent | null }
   | { type: "DECISION_SAVED_OK"; payload: { decisionId: string } }
   | { type: "DECISION_SAVE_ERROR"; payload: { message: string } }
   | { type: "SYNC_QUEUE_STATUS"; payload: { queued: number } }
-  // Auth messages
   | { type: "WEBAPP_SESSION"; payload: SupabaseRawSession }
   | { type: "GET_AUTH_STATE" }
   | { type: "SIGN_OUT" }
@@ -127,20 +149,66 @@ export interface AuthState {
   activeClientId: number
 }
 
-// ─── Messages: auth additions ─────────────────────────────────────────────────
-// (merged into ExtensionMessage union below)
-
 // ─── API response shapes ──────────────────────────────────────────────────────
+
+export interface ApiEventResponse {
+  id: string
+  client_id: number
+  source_app: string
+  event_type: string
+  source_url: string | null
+  external_entity_id: string | null
+  title: string | null
+  description: string | null
+  occurred_at: string
+  created_at: string
+}
 
 export interface ApiDecisionResponse {
   id: string
-  summary: string
+  client_id: number
   status: DecisionStatus
-  createdAt: string
+  decision_type: DecisionType
+  context_key: string | null
+  summary: string
+  urgency: "NORMAL" | "HIGH" | "CRITICAL"
+  recommended_action: "APPROVE" | "REJECT" | "ESCALATE" | null
+  recommended_confidence: "HIGH" | "MEDIUM" | "LOW" | null
+  suggested_conditions: string[]
+  final_action: string | null
+  decided_by: number | null
+  decided_at: string | null
+  created_at: string
+  recommendation: DecisionRecommendation | null
+  subject_company: {
+    id: number
+    external_id: string
+    name: string
+    domain: string | null
+  } | null
 }
 
-export interface ApiObservedEventResponse {
+export interface ApiDecisionListResponse {
+  data: ApiDecisionResponse[]
+  total: number
+  page: number
+  limit: number
+}
+
+export interface ApiDecisionNote {
   id: string
-  eventType: string
-  createdAt: string
+  decision_id: string
+  author_id: number
+  content: string
+  source_app: string | null
+  source_url: string | null
+  created_at: string
+}
+
+// ─── What syncDecisionNow returns ─────────────────────────────────────────────
+
+export interface SyncResult {
+  decisionId: string
+  recommendation: DecisionRecommendation | null
+  status: DecisionStatus
 }

@@ -140,42 +140,50 @@ onMessage((message: ExtensionMessage, sender, sendResponse) => {
     }
 
     case "SAVE_DECISION": {
-      const { payload } = message
-      log("saving decision:", payload.summary)
+      const { payload, detectedEvent: messageEvent } = message
+      log("saving decision:", payload.decisionType, "on", payload.sourceApp)
 
       Promise.all([getAuthState(), getPendingEvent()])
-        .then(async ([auth, pendingEvent]) => {
+        .then(async ([auth, storedEvent]) => {
           if (!auth) {
             log("SAVE_DECISION — not authenticated")
             sendResponse({ error: "NOT_AUTHENTICATED" })
             return
           }
 
-          if (pendingEvent) {
+          // Prefer event passed in the message (manual entries), fall back to storage
+          const eventToSync = messageEvent ?? storedEvent
+
+          if (eventToSync) {
+            log("syncing to API — event:", eventToSync.eventType, "url:", eventToSync.sourceUrl)
             try {
-              const decisionId = await syncDecisionNow(pendingEvent, payload)
-              log("decision synced immediately — id:", decisionId)
-              await setPendingEvent(null)
-              sendResponse({ decisionId })
+              const result = await syncDecisionNow(eventToSync, payload)
+              log("decision synced — id:", result.decisionId, "status:", result.status)
+              if (storedEvent) await setPendingEvent(null)
+              sendResponse({
+                decisionId: result.decisionId,
+                recommendation: result.recommendation,
+                status: result.status
+              })
             } catch (e) {
-              err("immediate sync failed", e)
+              err("sync failed:", e instanceof Error ? e.message : e)
               if (e instanceof Error && e.message === "UNAUTHORIZED") {
                 await clearAuthState()
                 sendResponse({ error: "NOT_AUTHENTICATED" })
               } else {
                 const cached = await enqueueDecision(payload)
-                await setPendingEvent(null)
-                log("queued for later sync — id:", cached.id)
-                sendResponse({ decisionId: cached.id, queued: true })
+                if (storedEvent) await setPendingEvent(null)
+                log("queued for retry — id:", cached.id)
+                sendResponse({ decisionId: cached.id, queued: true, error: String(e) })
               }
             }
           } else {
-            log("no pending event — queuing")
+            log("no event context — queuing")
             const cached = await enqueueDecision(payload)
             sendResponse({ decisionId: cached.id, queued: true })
           }
         })
-        .catch((e) => { err("SAVE_DECISION threw", e); sendResponse({ error: String(e) }) })
+        .catch((e) => { err("SAVE_DECISION threw:", e); sendResponse({ error: String(e) }) })
 
       return true
     }

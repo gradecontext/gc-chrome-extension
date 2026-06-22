@@ -41,6 +41,41 @@ export function labelFromEventType(eventType: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
+// Detect the SourceApp from a tab URL — defaults to "hubspot" for unknown sites
+export function detectSiteFromUrl(url: string): import("~types").SourceApp {
+  if (/figma\.com/.test(url)) return "figma"
+  if (/atlassian\.net|jira\./.test(url)) return "jira"
+  return "hubspot"
+}
+
+// Extract a meaningful entity name from the tab URL + title.
+// Prefers URL-derived names (more reliable) over tab titles.
+export function extractEntityName(url: string, title: string, site: import("~types").SourceApp): string {
+  try {
+    const parsed = new URL(url)
+
+    if (site === "figma") {
+      // URL shape: /design/{fileId}/{File-Name}  or  /board/{fileId}/{Board-Name}
+      const m = parsed.pathname.match(/\/(?:design|board|proto)\/[^/]+\/([^/?#]+)/)
+      if (m?.[1]) return decodeURIComponent(m[1]).replace(/-/g, " ").trim()
+    }
+
+    if (site === "jira") {
+      // /browse/PROJ-123 → "PROJ-123"
+      const m = parsed.pathname.match(/\/browse\/([\w]+-\d+)/)
+      if (m?.[1]) return m[1]
+    }
+  } catch {
+    // invalid URL — fall through to title stripping
+  }
+
+  // Generic fallback: strip the tool suffix from the tab title
+  return title
+    .replace(/\s*[-–|]\s*(Figma|FigJam|HubSpot|Jira(?: Software)?|Linear|GitHub|Notion|Salesforce)(\s.*)?$/i, "")
+    .replace(/\s*\|\s*(CRM|Records|Contacts|Deals|Companies)\s*$/i, "")
+    .trim()
+}
+
 // Wait for an element matching selector to appear in the DOM
 export function waitForElement(
   selector: string,

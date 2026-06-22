@@ -10,7 +10,7 @@ import { useAuth } from "~hooks/useAuth"
 import type { ExtensionSettings, SourceApp } from "~types"
 
 function Popup() {
-  const { isAuthenticated, user, displayName, memberships, loading, signOut } = useAuth()
+  const { isAuthenticated, user, displayName, memberships, loading } = useAuth()
   const [settings, setSettings] = useState<ExtensionSettings | null>(null)
   const [apiUrl, setApiUrl] = useState("")
   const [queueCount, setQueueCount] = useState(0)
@@ -103,11 +103,6 @@ function Popup() {
               <p className="text-xs text-gray-400 truncate">{memberships[0].client.name}</p>
             )}
           </div>
-          <button
-            onClick={signOut}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors flex-shrink-0">
-            Sign out
-          </button>
         </div>
 
         {/* Status */}

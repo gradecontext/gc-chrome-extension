@@ -1,6 +1,7 @@
 import type { PlasmoCSConfig } from "plasmo"
 import type { SupabaseRawSession } from "~types"
 import { isChromeContextValid } from "~lib/utils"
+import { STORAGE_KEYS } from "~lib/constants"
 
 export const config: PlasmoCSConfig = {
   matches: [
@@ -81,7 +82,12 @@ function clearSession() {
   sessionWritten = false
   if (!isChromeContextValid()) return
   try {
-    ;(globalThis as any).chrome.storage.local.remove(RAW_SESSION_KEY)
+    // Clear both the raw session handshake key AND the persisted auth state
+    // so the extension immediately reflects the webapp logout/expiry.
+    ;(globalThis as any).chrome.storage.local.remove([
+      RAW_SESSION_KEY,
+      STORAGE_KEYS.AUTH_STATE
+    ])
   } catch {
     // context invalidated — nothing to do
   }

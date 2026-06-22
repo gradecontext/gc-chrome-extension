@@ -1,82 +1,108 @@
 import React, { useEffect, useState } from "react"
 import { sendToBackground } from "~lib/messaging"
-import { labelFromEventType } from "~lib/utils"
-import type { DecisionPayload, DecisionType, DetectedEvent } from "~types"
+import { extractEntityName } from "~lib/utils"
+import { getContexts, reviewDecision } from "~services/api"
+import type {
+  DecisionContext,
+  DecisionPayload,
+  DecisionRecommendation,
+  DecisionType,
+  DetectedEvent,
+  ReviewAction
+} from "~types"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 import { Input } from "./ui/Input"
 import { Textarea } from "./ui/Textarea"
 
 const DECISION_TYPES: { value: DecisionType; label: string }[] = [
-  { value: "CUSTOM", label: "General Decision" },
+  { value: "CUSTOM", label: "Custom" },
   { value: "DISCOUNT", label: "Discount Approval" },
   { value: "ONBOARDING", label: "Onboarding" },
   { value: "PAYMENT_TERMS", label: "Payment Terms" },
+  { value: "CREDIT_EXTENSION", label: "Credit Extension" },
   { value: "RENEWAL", label: "Renewal" },
   { value: "ESCALATION", label: "Escalation" },
   { value: "PARTNERSHIP", label: "Partnership" }
 ]
 
+const SITE_LABEL: Record<string, string> = {
+  figma: "Figma",
+  jira: "Jira",
+  hubspot: "HubSpot"
+}
+
+const SITE_COLOR: Record<string, "green" | "indigo" | "amber"> = {
+  figma: "green",
+  jira: "indigo",
+  hubspot: "amber"
+}
+
 interface DecisionFormProps {
   event: DetectedEvent
+  clientId: number
   onSuccess: (decisionId: string) => void
   onCancel: () => void
 }
 
-export function DecisionForm({ event, onSuccess, onCancel }: DecisionFormProps) {
-  const [summary, setSummary] = useState(event.title ?? "")
-  const [rationale, setRationale] = useState("")
-  const [tagInput, setTagInput] = useState("")
-  const [tags, setTags] = useState<string[]>([])
-  const [decisionType, setDecisionType] = useState<DecisionType>("CUSTOM")
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
+export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionFormProps) {
+  const [step, setStep] = useState<"form" | "recommendation">("form")
 
-  // Pre-select decision type from event hint
+  // Form fields
+  const [contexts, setContexts] = useState<DecisionContext[]>([])
+  const [entityName, setEntityName] = useState(() =>
+    extractEntityName(event.sourceUrl, event.title ?? "", event.site)
+  )
+  const [contextKey, setContextKey] = useState("")
+  const [decisionType, setDecisionType] = useState<DecisionType>("CUSTOM")
+  const [decision, setDecision] = useState("")
+  const [rationale, setRationale] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState("")
+
+  // Recommendation step
+  const [decisionId, setDecisionId] = useState("")
+  const [recommendation, setRecommendation] = useState<DecisionRecommendation | null>(null)
+  const [reviewNote, setReviewNote] = useState("")
+  const [reviewing, setReviewing] = useState(false)
+  const [reviewError, setReviewError] = useState("")
+
   useEffect(() => {
+    getContexts(clientId).then(setContexts).catch(() => {})
+
     const type = event.eventType.toLowerCase()
     if (type.includes("discount")) setDecisionType("DISCOUNT")
     else if (type.includes("onboard")) setDecisionType("ONBOARDING")
     else if (type.includes("renewal")) setDecisionType("RENEWAL")
     else if (type.includes("escalat")) setDecisionType("ESCALATION")
-  }, [event.eventType])
-
-  function addTag() {
-    const t = tagInput.trim().toLowerCase()
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t])
-    setTagInput("")
-  }
-
-  function removeTag(tag: string) {
-    setTags((prev) => prev.filter((t) => t !== tag))
-  }
-
-  function handleTagKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter" || e.key === ",") {
-      e.preventDefault()
-      addTag()
-    }
-    if (e.key === "Backspace" && tagInput === "" && tags.length > 0) {
-      setTags((prev) => prev.slice(0, -1))
-    }
-  }
+    else if (type.includes("partner")) setDecisionType("PARTNERSHIP")
+    else if (type.includes("payment")) setDecisionType("PAYMENT_TERMS")
+  }, [clientId, event.eventType])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!summary.trim()) {
-      setError("Summary is required")
+
+    if (!decision.trim()) {
+      setFormError("Describe what was decided.")
+      return
+    }
+    if (!rationale.trim()) {
+      setFormError("Add the reasoning — this is what makes the record valuable later.")
       return
     }
 
     setSaving(true)
-    setError("")
+    setFormError("")
 
     const payload: DecisionPayload = {
-      observedEventClientId: event.id,
-      summary: summary.trim(),
-      rationale: rationale.trim() || undefined,
-      tags,
       decisionType,
+      contextKey: contextKey || undefined,
+      summary: decision.trim(),
+      // Note content: decision title + why — sent inline in POST /decisions
+      rationale: `${decision.trim()}\n\nWhy: ${rationale.trim()}`,
+      subjectCompany: {
+        name: entityName.trim() || undefined
+      },
       sourceApp: event.site,
       sourceUrl: event.sourceUrl,
       externalEntityId: event.externalEntityId,
@@ -85,43 +111,166 @@ export function DecisionForm({ event, onSuccess, onCancel }: DecisionFormProps) 
 
     const response = await sendToBackground({
       type: "SAVE_DECISION",
-      payload
-    }) as { decisionId?: string; error?: string } | undefined
+      payload,
+      detectedEvent: event
+    }) as {
+      decisionId?: string
+      recommendation?: DecisionRecommendation
+      status?: string
+      queued?: boolean
+      error?: string
+    } | undefined
+
+    console.log("[CG:form] SAVE_DECISION response:", response)
 
     setSaving(false)
 
     if (response?.error === "NOT_AUTHENTICATED") {
-      setError("Session expired — please sign in again via the extension popup.")
-    } else if (response?.error) {
-      setError(response.error)
-    } else if (response?.decisionId) {
+      setFormError("Session expired — please sign in again via the extension popup.")
+      return
+    }
+    if (response?.error) {
+      setFormError(response.error)
+      return
+    }
+    if (!response?.decisionId) {
+      setFormError("Unexpected response. Please try again.")
+      return
+    }
+
+    if (response.queued || !response.recommendation) {
       onSuccess(response.decisionId)
+      return
+    }
+
+    setDecisionId(response.decisionId)
+    setRecommendation(response.recommendation)
+    setStep("recommendation")
+  }
+
+  async function handleReview(action: ReviewAction) {
+    setReviewing(true)
+    setReviewError("")
+    try {
+      await reviewDecision(decisionId, action, clientId, reviewNote.trim() || undefined)
+      onSuccess(decisionId)
+    } catch (e) {
+      setReviewError(e instanceof Error ? e.message : "Review failed. Please try again.")
+      setReviewing(false)
     }
   }
 
+  // ── Recommendation step ───────────────────────────────────────────────────────
+
+  if (step === "recommendation" && recommendation) {
+    const rec = recommendation.recommendation
+    const conf = recommendation.confidence
+
+    return (
+      <div className="flex flex-col gap-4">
+        <SourceRow event={event} />
+
+        <div className="rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-3 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              AI Recommendation
+            </span>
+            <span className="ml-auto text-xs text-gray-400 capitalize">{conf} confidence</span>
+          </div>
+          <div className="p-3 flex flex-col gap-3">
+            <Badge color={rec === "APPROVE" ? "green" : rec === "REJECT" ? "red" : "amber"}>
+              {rec}
+            </Badge>
+
+            {recommendation.rationale.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {recommendation.rationale.map((r, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                    <span className="mt-0.5 text-gray-300">•</span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {recommendation.suggested_conditions.length > 0 && (
+              <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                <p className="text-xs font-medium text-amber-700 mb-1">Suggested conditions</p>
+                <ul className="flex flex-col gap-0.5">
+                  {recommendation.suggested_conditions.map((c, i) => (
+                    <li key={i} className="text-xs text-amber-600">— {c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Textarea
+          label="Add a note (optional)"
+          hint="Your reasoning will be recorded alongside the decision."
+          value={reviewNote}
+          onChange={(e) => setReviewNote(e.target.value)}
+          placeholder="Any additional context before marking your review…"
+          rows={3}
+        />
+
+        {reviewError && <p className="text-xs text-red-500 font-medium">{reviewError}</p>}
+
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <Button className="flex-1" loading={reviewing} onClick={() => handleReview("approve")}>
+              Approve
+            </Button>
+            <Button variant="ghost" loading={reviewing} onClick={() => handleReview("reject")}>
+              Reject
+            </Button>
+            <Button variant="ghost" loading={reviewing} onClick={() => handleReview("escalate")}>
+              Escalate
+            </Button>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSuccess(decisionId)}
+            className="text-xs text-gray-400 hover:text-gray-600 text-center transition-colors">
+            Skip review for now
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Capture form ──────────────────────────────────────────────────────────────
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-      {/* Context pill */}
-      <div className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded-xl">
-        <Badge color={event.site === "jira" ? "indigo" : event.site === "figma" ? "green" : "amber"}>
-          {event.site.charAt(0).toUpperCase() + event.site.slice(1)}
-        </Badge>
-        <span className="text-xs text-gray-500 truncate">{labelFromEventType(event.eventType)}</span>
-        {event.externalEntityId && (
-          <span className="text-xs text-gray-400 ml-auto font-mono">
-            {event.externalEntityId}
-          </span>
-        )}
-      </div>
+      <SourceRow event={event} />
 
-      {/* Summary */}
+      {/* Subject */}
       <Input
-        label="Decision summary"
-        value={summary}
-        onChange={(e) => setSummary(e.target.value)}
-        placeholder="What was decided?"
-        required
+        label="Subject"
+        value={entityName}
+        onChange={(e) => setEntityName(e.target.value)}
+        placeholder="Company, file, or project this decision is about"
       />
+
+      {/* Context */}
+      {contexts.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium text-gray-700">Context</label>
+          <select
+            value={contextKey}
+            onChange={(e) => setContextKey(e.target.value)}
+            className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+            <option value="">— None —</option>
+            {contexts.map((ctx) => (
+              <option key={ctx.id} value={ctx.key}>
+                {ctx.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Decision type */}
       <div className="flex flex-col gap-1">
@@ -138,56 +287,52 @@ export function DecisionForm({ event, onSuccess, onCancel }: DecisionFormProps) 
         </select>
       </div>
 
-      {/* Rationale */}
+      {/* Decision — what was decided */}
       <Textarea
-        label="Rationale (optional)"
-        hint="Why was this decision made? Add context that won't be obvious later."
+        label="Decision"
+        value={decision}
+        onChange={(e) => setDecision(e.target.value)}
+        placeholder="What was decided?"
+        rows={2}
+      />
+
+      {/* Rationale — the why */}
+      <Textarea
+        label="Why"
+        hint="What context won't be obvious when someone reads this later?"
         value={rationale}
         onChange={(e) => setRationale(e.target.value)}
-        placeholder="The customer had escalated twice and we needed to move quickly…"
+        placeholder="What drove this decision? What trade-offs or constraints mattered?"
         rows={4}
       />
 
-      {/* Tags */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium text-gray-700">Tags</label>
-        <div className="flex flex-wrap gap-1.5 p-2 min-h-[40px] rounded-lg border border-gray-200 bg-white">
-          {tags.map((tag) => (
-            <span
-              key={tag}
-              className="inline-flex items-center gap-1 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-              {tag}
-              <button
-                type="button"
-                onClick={() => removeTag(tag)}
-                className="text-indigo-400 hover:text-indigo-700 leading-none">
-                ×
-              </button>
-            </span>
-          ))}
-          <input
-            type="text"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={handleTagKeyDown}
-            onBlur={addTag}
-            placeholder={tags.length === 0 ? "Add tags…" : ""}
-            className="flex-1 min-w-[80px] text-xs outline-none bg-transparent placeholder:text-gray-400"
-          />
-        </div>
-        <p className="text-xs text-gray-400">Press Enter or comma to add</p>
-      </div>
-
-      {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
+      {formError && <p className="text-xs text-red-500 font-medium">{formError}</p>}
 
       <div className="flex gap-2 pt-1">
         <Button type="submit" loading={saving} className="flex-1">
-          Save decision
+          Capture decision
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
       </div>
     </form>
+  )
+}
+
+function SourceRow({ event }: { event: DetectedEvent }) {
+  const label = SITE_LABEL[event.site] ?? event.site
+  const color = SITE_COLOR[event.site] ?? "gray"
+
+  return (
+    <div className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded-xl">
+      <span className="text-xs text-gray-400 w-12 flex-shrink-0">Source</span>
+      <Badge color={color}>{label}</Badge>
+      {event.sourceUrl && (
+        <span className="text-xs text-gray-400 truncate ml-auto font-mono">
+          {new URL(event.sourceUrl).hostname.replace(/^www\./, "")}
+        </span>
+      )}
+    </div>
   )
 }

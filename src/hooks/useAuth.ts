@@ -2,6 +2,7 @@ import { Storage } from "@plasmohq/storage"
 import { useEffect, useState } from "react"
 import { STORAGE_KEYS } from "~lib/constants"
 import { clearAuthState, getAuthState } from "~lib/storage"
+import { getValidToken } from "~services/auth"
 import { sendToBackground } from "~lib/messaging"
 import type { AuthState } from "~types"
 
@@ -12,10 +13,18 @@ export function useAuth() {
   const [auth, setAuth] = useState<AuthState | null | undefined>(undefined)
 
   useEffect(() => {
-    // 1. Read current value immediately
-    getAuthState()
-      .then((stored) => {
-        console.debug("[CG:useAuth] initial storage read →", stored ? `user:${stored.user.email}` : "null")
+    // 1. Read current value and verify token hasn't expired.
+    // getValidToken() calls clearAuthState() if expired, so we read the state
+    // after that check resolves.
+    getValidToken()
+      .then(async (token) => {
+        if (!token) {
+          console.log("[CG:useAuth] no valid token (null or expired) — clearing")
+          setAuth(null)
+          return
+        }
+        const stored = await getAuthState()
+        console.log("[CG:useAuth] initial storage read →", stored ? `user:${stored.user.email}` : "null")
         setAuth(stored)
       })
       .catch((err) => {
