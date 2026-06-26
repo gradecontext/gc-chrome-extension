@@ -4,18 +4,18 @@ export const STORAGE_KEYS = {
   PENDING_EVENT: "cg_pending_event",
   AUTH_STATE: "cg_auth_state",
   // Raw session written by content script, consumed + cleared by background
-  RAW_SESSION: "cg_raw_session"
+  RAW_SESSION: "cg_raw_session",
+  // Cached GET /decisions/subject-companies response, used to gate icon visibility
+  SOURCES_CACHE: "cg_sources_cache"
 } as const
 
 export const DEFAULT_SETTINGS = {
   apiUrl: process.env.PLASMO_PUBLIC_API_URL ?? "http://localhost:3000/api",
-  enabled: true,
-  enabledSites: {
-    jira: true,
-    figma: true,
-    hubspot: true
-  }
+  enabled: true
 } as const
+
+// How long the tracked-sources list is cached before re-fetching
+export const SOURCES_CACHE_TTL_MS = 5 * 60_000 // 5 minutes
 
 export const WEBAPP_URL =
   process.env.PLASMO_PUBLIC_WEBAPP_URL ?? "http://localhost:3000"

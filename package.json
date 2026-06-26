@@ -28,13 +28,8 @@
   },
   "manifest": {
     "host_permissions": [
-      "https://*.atlassian.net/*",
-      "https://*.jira.com/*",
-      "https://www.figma.com/*",
-      "https://*.hubspot.com/*",
-      "https://*.salesforce.com/*",
-      "http://localhost:3000/*",
-      "https://app.contextgrade.com/*"
+      "https://*/*",
+      "http://localhost:3000/*"
     ],
     "permissions": [
       "storage",

@@ -4,7 +4,8 @@ import type {
   AuthState,
   CachedDecision,
   DetectedEvent,
-  ExtensionSettings
+  ExtensionSettings,
+  SubjectCompanySource
 } from "~types"
 
 const storage = new Storage({ area: "local" })
@@ -86,4 +87,19 @@ export async function removeFromQueue(id: string): Promise<void> {
 export async function getPendingQueueCount(): Promise<number> {
   const queue = await getSyncQueue()
   return queue.filter((d) => d.status === "pending" || d.status === "failed").length
+}
+
+// ─── Tracked sources cache (GET /decisions/subject-companies) ────────────────
+
+interface SourcesCache {
+  sources: SubjectCompanySource[]
+  fetchedAt: number
+}
+
+export async function getCachedSources(): Promise<SourcesCache | null> {
+  return (await storage.get<SourcesCache>(STORAGE_KEYS.SOURCES_CACHE)) ?? null
+}
+
+export async function setCachedSources(sources: SubjectCompanySource[]): Promise<void> {
+  await storage.set(STORAGE_KEYS.SOURCES_CACHE, { sources, fetchedAt: Date.now() })
 }

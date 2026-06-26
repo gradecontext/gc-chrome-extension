@@ -5,17 +5,17 @@ import type { DetectedEvent } from "~types"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 
-const SITE_COLORS = {
+const SITE_COLORS: Record<string, "indigo" | "green" | "amber"> = {
   jira: "indigo",
   figma: "green",
   hubspot: "amber"
-} as const
+}
 
-const SITE_LABELS = {
+const SITE_LABELS: Record<string, string> = {
   jira: "Jira",
   figma: "Figma",
   hubspot: "HubSpot"
-} as const
+}
 
 interface FloatingPromptProps {
   event: DetectedEvent
@@ -53,8 +53,8 @@ export function FloatingPrompt({ event, onDismiss, onSaved }: FloatingPromptProp
     setTimeout(() => { onDismiss(); onSaved?.() }, 300)
   }
 
-  const siteColor = SITE_COLORS[event.site]
-  const siteLabel = SITE_LABELS[event.site]
+  const siteColor = SITE_COLORS[event.site] ?? "indigo"
+  const siteLabel = SITE_LABELS[event.site] ?? event.site
   const eventLabel = labelFromEventType(event.eventType)
 
   return (

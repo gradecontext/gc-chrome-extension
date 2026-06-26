@@ -21,7 +21,7 @@ export async function flushSyncQueue(): Promise<void> {
         eventType: cached.payload.decisionType,
         sourceUrl: cached.payload.sourceUrl,
         externalEntityId: cached.payload.externalEntityId,
-        title: cached.payload.subjectCompany?.name,
+        title: cached.payload.summary,
         occurredAt: cached.payload.occurredAt
       }
 

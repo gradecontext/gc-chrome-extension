@@ -5,6 +5,7 @@ import { FloatingIcon } from "~components/FloatingIcon"
 import { FloatingPrompt } from "~components/FloatingPrompt"
 import { FigmaDetector } from "~content/sites/figma"
 import { useAuth } from "~hooks/useAuth"
+import { useTrackedSource } from "~hooks/useTrackedSource"
 import { sendToBackground } from "~lib/messaging"
 import { getSettings } from "~lib/storage"
 import type { DetectedEvent } from "~types"
@@ -25,31 +26,44 @@ export const getStyle: PlasmoGetStyle = () => {
 const FigmaContent = () => {
   const [pendingEvent, setPendingEvent] = useState<DetectedEvent | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
-  const [enabled, setEnabled] = useState(true)
+  const [masterEnabled, setMasterEnabled] = useState(true)
   const { isAuthenticated, loading: authLoading } = useAuth()
+  const { source, loading: sourceLoading } = useTrackedSource(window.location.href)
 
   useEffect(() => {
-    getSettings().then((s) => setEnabled(s.enabled && s.enabledSites.figma))
+    getSettings().then((s) => setMasterEnabled(s.enabled))
   }, [])
 
+  // Show the icon if the master switch is on, and either the user isn't
+  // signed in yet (so they can discover + sign in) or this domain is a
+  // registered tracked source.
+  const showIcon = masterEnabled && (!isAuthenticated || !!source)
+  // Only run DOM detection once we know this domain is actually tracked.
+  const canDetect = masterEnabled && !!source
+
   useEffect(() => {
-    if (!enabled) return
-    console.log("[CG:figma] content script mounted on:", window.location.href)
+    if (!canDetect || !source) return
+    console.log("[CG:figma] content script mounted on:", window.location.href, "— tracked as", source.external_id)
 
     const detector = new FigmaDetector("figma", (detected) => {
       console.log("[CG:figma] event detected:", detected.eventType)
-      setPendingEvent(detected)
+      const enriched: DetectedEvent = {
+        ...detected,
+        sourceCompanyExternalId: source.external_id,
+        sourceCompanyName: source.name
+      }
+      setPendingEvent(enriched)
       setShowPrompt(true)
-      sendToBackground({ type: "DECISION_DETECTED", payload: detected }).catch(
+      sendToBackground({ type: "DECISION_DETECTED", payload: enriched }).catch(
         (e) => console.error("[CG:figma] sendToBackground failed", e)
       )
     })
 
     detector.start()
     return () => detector.stop()
-  }, [enabled])
+  }, [canDetect, source])
 
-  if (!enabled) return null
+  if (authLoading || sourceLoading || !showIcon) return null
 
   async function handleIconClick() {
     if (pendingEvent) {

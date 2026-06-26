@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react"
 import { sendToBackground } from "~lib/messaging"
-import { extractEntityName } from "~lib/utils"
 import { getContexts, reviewDecision } from "~services/api"
 import type {
   DecisionContext,
@@ -12,7 +11,6 @@ import type {
 } from "~types"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
-import { Input } from "./ui/Input"
 import { Textarea } from "./ui/Textarea"
 
 const DECISION_TYPES: { value: DecisionType; label: string }[] = [
@@ -50,9 +48,6 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
 
   // Form fields
   const [contexts, setContexts] = useState<DecisionContext[]>([])
-  const [entityName, setEntityName] = useState(() =>
-    extractEntityName(event.sourceUrl, event.title ?? "", event.site)
-  )
   const [contextKey, setContextKey] = useState("")
   const [decisionType, setDecisionType] = useState<DecisionType>("CUSTOM")
   const [decision, setDecision] = useState("")
@@ -90,6 +85,10 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
       setFormError("Add the reasoning — this is what makes the record valuable later.")
       return
     }
+    if (!event.sourceCompanyExternalId) {
+      setFormError("This site isn't registered as a tracked source. Add it from the ContextGrade dashboard first.")
+      return
+    }
 
     setSaving(true)
     setFormError("")
@@ -100,9 +99,7 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
       summary: decision.trim(),
       // Note content: decision title + why — sent inline in POST /decisions
       rationale: `${decision.trim()}\n\nWhy: ${rationale.trim()}`,
-      subjectCompany: {
-        name: entityName.trim() || undefined
-      },
+      externalId: event.sourceCompanyExternalId,
       sourceApp: event.site,
       sourceUrl: event.sourceUrl,
       externalEntityId: event.externalEntityId,
@@ -246,14 +243,6 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <SourceRow event={event} />
 
-      {/* Subject */}
-      <Input
-        label="Subject"
-        value={entityName}
-        onChange={(e) => setEntityName(e.target.value)}
-        placeholder="Company, file, or project this decision is about"
-      />
-
       {/* Context */}
       {contexts.length > 0 && (
         <div className="flex flex-col gap-1">
@@ -321,16 +310,16 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
 }
 
 function SourceRow({ event }: { event: DetectedEvent }) {
-  const label = SITE_LABEL[event.site] ?? event.site
+  const label = event.sourceCompanyName ?? SITE_LABEL[event.site] ?? event.site
   const color = SITE_COLOR[event.site] ?? "gray"
 
   return (
     <div className="flex items-center gap-2 py-2 px-3 bg-gray-50 rounded-xl">
       <span className="text-xs text-gray-400 w-12 flex-shrink-0">Source</span>
       <Badge color={color}>{label}</Badge>
-      {event.sourceUrl && (
+      {event.sourceCompanyExternalId && (
         <span className="text-xs text-gray-400 truncate ml-auto font-mono">
-          {new URL(event.sourceUrl).hostname.replace(/^www\./, "")}
+          {event.sourceCompanyExternalId}
         </span>
       )}
     </div>

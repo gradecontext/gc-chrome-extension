@@ -6,7 +6,9 @@ export type SourceApp = "jira" | "figma" | "hubspot"
 
 export interface DetectedEvent {
   id: string
-  site: SourceApp
+  // Detectors emit the literal SourceApp; manual entries on generic
+  // admin-registered domains use the resolved hostname (e.g. "lattice.com").
+  site: SourceApp | string
   eventType: string
   sourceUrl: string
   externalEntityId?: string
@@ -14,6 +16,10 @@ export interface DetectedEvent {
   description?: string
   rawData?: Record<string, unknown>
   occurredAt: string // ISO 8601
+  // Resolved at detection time by matching window.location against the
+  // client's registered subject companies — required for decision creation.
+  sourceCompanyExternalId?: string
+  sourceCompanyName?: string
 }
 
 // ─── Decision payload — sent via SAVE_DECISION background message ─────────────
@@ -23,14 +29,26 @@ export interface DecisionPayload {
   contextKey?: string
   summary: string          // "What was decided?" — becomes the decision title
   rationale?: string       // "Why?" — sent inline as note.content alongside summary
-  subjectCompany?: {
-    name?: string
-    domain?: string
-  }
-  sourceApp: SourceApp
+  externalId: string       // pre-registered SubjectCompany.external_id (e.g. "figma.com")
+  sourceApp: SourceApp | string
   sourceUrl: string
   externalEntityId?: string
   occurredAt: string
+}
+
+// ─── Subject companies (admin-managed tracked sources) ────────────────────────
+
+export interface SubjectCompanySource {
+  id: number
+  client_id: number
+  external_id: string
+  name: string
+  domain: string
+  active: boolean
+  industry?: string
+  country?: string
+  created_at: string
+  updated_at: string
 }
 
 // ─── Enums matching backend schema ───────────────────────────────────────────
@@ -107,7 +125,6 @@ export interface CachedDecision {
 export interface ExtensionSettings {
   apiUrl: string
   enabled: boolean
-  enabledSites: Record<SourceApp, boolean>
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { FloatingIcon } from "~components/FloatingIcon"
 import { FloatingPrompt } from "~components/FloatingPrompt"
 import { JiraDetector } from "~content/sites/jira"
 import { useAuth } from "~hooks/useAuth"
+import { useTrackedSource } from "~hooks/useTrackedSource"
 import { sendToBackground } from "~lib/messaging"
 import { getSettings } from "~lib/storage"
 import type { DetectedEvent } from "~types"
@@ -25,31 +26,40 @@ export const getStyle: PlasmoGetStyle = () => {
 const JiraContent = () => {
   const [pendingEvent, setPendingEvent] = useState<DetectedEvent | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
-  const [enabled, setEnabled] = useState(true)
+  const [masterEnabled, setMasterEnabled] = useState(true)
   const { isAuthenticated, loading: authLoading } = useAuth()
+  const { source, loading: sourceLoading } = useTrackedSource(window.location.href)
 
   useEffect(() => {
-    getSettings().then((s) => setEnabled(s.enabled && s.enabledSites.jira))
+    getSettings().then((s) => setMasterEnabled(s.enabled))
   }, [])
 
+  const showIcon = masterEnabled && (!isAuthenticated || !!source)
+  const canDetect = masterEnabled && !!source
+
   useEffect(() => {
-    if (!enabled) return
-    console.log("[CG:jira] content script mounted on:", window.location.href)
+    if (!canDetect || !source) return
+    console.log("[CG:jira] content script mounted on:", window.location.href, "— tracked as", source.external_id)
 
     const detector = new JiraDetector("jira", (detected) => {
       console.log("[CG:jira] event detected:", detected.eventType)
-      setPendingEvent(detected)
+      const enriched: DetectedEvent = {
+        ...detected,
+        sourceCompanyExternalId: source.external_id,
+        sourceCompanyName: source.name
+      }
+      setPendingEvent(enriched)
       setShowPrompt(true)
-      sendToBackground({ type: "DECISION_DETECTED", payload: detected }).catch(
+      sendToBackground({ type: "DECISION_DETECTED", payload: enriched }).catch(
         (e) => console.error("[CG:jira] sendToBackground failed", e)
       )
     })
 
     detector.start()
     return () => detector.stop()
-  }, [enabled])
+  }, [canDetect, source])
 
-  if (!enabled) return null
+  if (authLoading || sourceLoading || !showIcon) return null
 
   async function handleIconClick() {
     if (pendingEvent) {

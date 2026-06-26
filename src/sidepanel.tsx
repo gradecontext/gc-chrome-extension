@@ -6,6 +6,7 @@ import { Badge } from "~components/ui/Badge"
 import { Button } from "~components/ui/Button"
 import { useAuth } from "~hooks/useAuth"
 import { usePendingEvent, useSavedDecision } from "~hooks/useDecision"
+import { getTrackedSources, matchSource } from "~hooks/useTrackedSource"
 import { generateId, detectSiteFromUrl } from "~lib/utils"
 import type { DetectedEvent } from "~types"
 
@@ -14,23 +15,48 @@ function SidePanel() {
   const { pendingEvent, clearPending } = usePendingEvent()
   const { saved, markSaved, reset } = useSavedDecision()
   const [manualEvent, setManualEvent] = useState<DetectedEvent | null>(null)
+  const [manualError, setManualError] = useState("")
+  const [resolvingManual, setResolvingManual] = useState(false)
 
   async function startManualEntry() {
+    if (!activeClientId) return
+    setResolvingManual(true)
+    setManualError("")
+
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     const url = tab?.url ?? ""
+
+    let hostname = ""
+    try { hostname = new URL(url).hostname } catch {}
+
+    const sources = await getTrackedSources(activeClientId).catch(() => [])
+    const matched = matchSource(hostname, sources)
+
+    setResolvingManual(false)
+
+    if (!matched) {
+      setManualError(
+        `${hostname || "This site"} isn't registered as a tracked source. Add it from the ContextGrade dashboard first.`
+      )
+      return
+    }
+
     const event: DetectedEvent = {
       id: generateId(),
       site: detectSiteFromUrl(url),
       eventType: "manual_entry",
       sourceUrl: url,
       title: tab?.title ?? undefined,
-      occurredAt: new Date().toISOString()
+      occurredAt: new Date().toISOString(),
+      sourceCompanyExternalId: matched.external_id,
+      sourceCompanyName: matched.name
     }
     setManualEvent(event)
   }
 
   function cancelManual() {
     setManualEvent(null)
+    setManualError("")
   }
 
   // Manual entry takes priority over storage-based pending event
@@ -57,6 +83,7 @@ function SidePanel() {
     return (
       <div className="flex flex-col h-full overflow-hidden font-sans">
         <SidePanelHeader onAdd={startManualEntry} />
+        <ManualErrorBanner message={manualError} />
         <div className="flex flex-col items-center justify-center flex-1 gap-4 p-6 text-center">
           <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center">
             <svg
@@ -89,6 +116,7 @@ function SidePanel() {
           pendingCount={!manualEvent && pendingEvent ? 1 : undefined}
           onAdd={startManualEntry}
         />
+        <ManualErrorBanner message={manualError} />
         <div className="flex-1 overflow-y-auto p-4">
           <DecisionForm
             event={activeEvent}
@@ -114,6 +142,7 @@ function SidePanel() {
   return (
     <div className="flex flex-col h-full overflow-hidden font-sans">
       <SidePanelHeader onAdd={startManualEntry} />
+      <ManualErrorBanner message={manualError} />
       <div className="flex flex-col items-center justify-center flex-1 gap-4 p-6 text-center">
         <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
           <svg
@@ -132,13 +161,22 @@ function SidePanel() {
         <div>
           <p className="text-sm font-semibold text-gray-700">No decision detected yet</p>
           <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-            Navigate to Jira, Figma, or HubSpot and take a meaningful action, or log one manually.
+            Navigate to a tracked site and take a meaningful action, or log one manually.
           </p>
         </div>
-        <Button size="sm" onClick={startManualEntry}>
+        <Button size="sm" loading={resolvingManual} onClick={startManualEntry}>
           Log a decision
         </Button>
       </div>
+    </div>
+  )
+}
+
+function ManualErrorBanner({ message }: { message: string }) {
+  if (!message) return null
+  return (
+    <div className="px-4 py-2 bg-amber-50 border-b border-amber-100">
+      <p className="text-xs text-amber-700">{message}</p>
     </div>
   )
 }

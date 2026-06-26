@@ -4,18 +4,19 @@ import { SignInPrompt } from "~components/SignInPrompt"
 import { Badge } from "~components/ui/Badge"
 import { Button } from "~components/ui/Button"
 import { Input } from "~components/ui/Input"
-import { WEBAPP_URL } from "~lib/constants"
-import { getSettings, getPendingQueueCount, saveSettings } from "~lib/storage"
 import { useAuth } from "~hooks/useAuth"
-import type { ExtensionSettings, SourceApp } from "~types"
+import { getTrackedSources } from "~hooks/useTrackedSource"
+import { getSettings, getPendingQueueCount, saveSettings } from "~lib/storage"
+import type { ExtensionSettings, SubjectCompanySource } from "~types"
 
 function Popup() {
-  const { isAuthenticated, user, displayName, memberships, loading } = useAuth()
+  const { isAuthenticated, user, displayName, memberships, activeClientId, loading } = useAuth()
   const [settings, setSettings] = useState<ExtensionSettings | null>(null)
   const [apiUrl, setApiUrl] = useState("")
   const [queueCount, setQueueCount] = useState(0)
   const [saved, setSaved] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sources, setSources] = useState<SubjectCompanySource[]>([])
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -24,6 +25,11 @@ function Popup() {
     })
     getPendingQueueCount().then(setQueueCount)
   }, [])
+
+  useEffect(() => {
+    if (!activeClientId) return
+    getTrackedSources(activeClientId).then(setSources).catch(() => {})
+  }, [activeClientId])
 
   async function handleSaveSettings() {
     await saveSettings({ apiUrl })
@@ -38,12 +44,7 @@ function Popup() {
     setSettings((s) => (s ? { ...s, enabled: next } : s))
   }
 
-  async function toggleSite(site: SourceApp) {
-    if (!settings) return
-    const updated = { ...settings.enabledSites, [site]: !settings.enabledSites[site] }
-    await saveSettings({ enabledSites: updated })
-    setSettings((s) => (s ? { ...s, enabledSites: updated } : s))
-  }
+  const activeSources = sources.filter((s) => s.active)
 
   // Only block on auth loading — settings have a safe default so they never hang
   if (loading) {
@@ -115,27 +116,26 @@ function Popup() {
           )}
         </div>
 
-        {/* Site toggles */}
+        {/* Tracked sites — admin-managed, read-only here */}
         <div className="flex flex-col gap-1">
           <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-            Monitored apps
+            Tracked sites
           </p>
-          {(["jira", "figma", "hubspot"] as SourceApp[]).map((site) => (
-            <div key={site} className="flex items-center justify-between py-1.5">
-              <span className="text-sm text-gray-700 capitalize">{site}</span>
-              <button
-                onClick={() => toggleSite(site)}
-                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${
-                  settings.enabledSites[site] ? "bg-indigo-600" : "bg-gray-200"
-                }`}>
-                <span
-                  className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform ${
-                    settings.enabledSites[site] ? "translate-x-3.5" : "translate-x-0.5"
-                  }`}
-                />
-              </button>
-            </div>
-          ))}
+          {activeSources.length === 0 ? (
+            <p className="text-xs text-gray-400">
+              No sites registered yet. Add one from the ContextGrade dashboard.
+            </p>
+          ) : (
+            activeSources.map((s) => (
+              <div key={s.id} className="flex items-center justify-between py-1.5">
+                <span className="text-sm text-gray-700">{s.name}</span>
+                <span className="text-xs text-gray-400 font-mono">{s.domain}</span>
+              </div>
+            ))
+          )}
+          <p className="text-xs text-gray-400 mt-1">
+            Managed by your admin on the ContextGrade dashboard.
+          </p>
         </div>
 
         {/* Advanced settings */}

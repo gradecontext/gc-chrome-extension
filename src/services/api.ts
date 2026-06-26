@@ -8,7 +8,8 @@ import type {
   DecisionContext,
   DecisionPayload,
   DetectedEvent,
-  ReviewAction
+  ReviewAction,
+  SubjectCompanySource
 } from "~types"
 
 async function buildHeaders(clientId?: number): Promise<HeadersInit> {
@@ -75,7 +76,8 @@ export async function logEvent(
   return handleResponse<ApiEventResponse>(res)
 }
 
-// POST /decisions — create a decision and receive AI recommendation
+// POST /decisions — lookup-only: external_id must match an active, pre-registered
+// subject company (see listSubjectCompanies). The backend no longer auto-creates one.
 export async function createDecision(
   payload: DecisionPayload,
   clientId: number,
@@ -83,20 +85,10 @@ export async function createDecision(
 ): Promise<ApiDecisionResponse> {
   const [headers, url] = await Promise.all([buildHeaders(clientId), baseUrl()])
 
-  // Derive domain from source URL (e.g. "figma.com") — always send it
-  let domain: string | undefined
-  try { domain = new URL(payload.sourceUrl).hostname.replace(/^www\./, "") || undefined } catch {}
-
-  // subject_company is required — always include at minimum the domain
-  const subject_company: Record<string, string> = {}
-  if (payload.subjectCompany?.name) subject_company.name = payload.subjectCompany.name
-  const resolvedDomain = payload.subjectCompany?.domain ?? domain
-  if (resolvedDomain) subject_company.domain = resolvedDomain
-
   const body: Record<string, unknown> = {
+    external_id: payload.externalId,
     decision_type: payload.decisionType,
-    summary: payload.summary,
-    subject_company
+    summary: payload.summary
   }
   if (payload.contextKey) body.context_key = payload.contextKey
   if (eventId) body.event_id = eventId
@@ -125,6 +117,16 @@ export async function getContexts(clientId: number): Promise<DecisionContext[]> 
 
   const res = await fetch(`${url}/decisions/contexts`, { headers })
   const json = await handleResponse<{ data: DecisionContext[] }>(res)
+  return json.data
+}
+
+// GET /decisions/subject-companies — list admin-registered tracked sources.
+// The extension uses this to decide where to show its icon.
+export async function listSubjectCompanies(clientId: number): Promise<SubjectCompanySource[]> {
+  const [headers, url] = await Promise.all([buildHeaders(clientId), baseUrl()])
+
+  const res = await fetch(`${url}/decisions/subject-companies`, { headers })
+  const json = await handleResponse<{ data: SubjectCompanySource[] }>(res)
   return json.data
 }
 
