@@ -5,8 +5,9 @@ import type {
   ApiDecisionNote,
   ApiDecisionResponse,
   ApiEventResponse,
-  DecisionContext,
+  ContextCategory,
   DecisionPayload,
+  DecisionTypeOption,
   DetectedEvent,
   ReviewAction,
   SubjectCompanySource
@@ -88,9 +89,9 @@ export async function createDecision(
   const body: Record<string, unknown> = {
     external_id: payload.externalId,
     decision_type: payload.decisionType,
+    context_category: payload.contextCategory,
     summary: payload.summary
   }
-  if (payload.contextKey) body.context_key = payload.contextKey
   if (eventId) body.event_id = eventId
 
   // Note is sent inline — no separate POST /notes call needed
@@ -111,12 +112,21 @@ export async function createDecision(
   return handleResponse<ApiDecisionResponse>(res)
 }
 
-// GET /decisions/contexts — load context dropdown options
-export async function getContexts(clientId: number): Promise<DecisionContext[]> {
+// GET /decisions/types — load decision type dropdown options
+export async function getDecisionTypes(clientId: number): Promise<DecisionTypeOption[]> {
   const [headers, url] = await Promise.all([buildHeaders(clientId), baseUrl()])
 
-  const res = await fetch(`${url}/decisions/contexts`, { headers })
-  const json = await handleResponse<{ data: DecisionContext[] }>(res)
+  const res = await fetch(`${url}/decisions/types`, { headers })
+  const json = await handleResponse<{ data: DecisionTypeOption[] }>(res)
+  return json.data
+}
+
+// GET /decisions/context-categories — load context category dropdown options
+export async function getContextCategories(clientId: number): Promise<ContextCategory[]> {
+  const [headers, url] = await Promise.all([buildHeaders(clientId), baseUrl()])
+
+  const res = await fetch(`${url}/decisions/context-categories`, { headers })
+  const json = await handleResponse<{ data: ContextCategory[] }>(res)
   return json.data
 }
 

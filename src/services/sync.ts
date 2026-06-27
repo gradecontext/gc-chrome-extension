@@ -55,7 +55,7 @@ export async function syncDecisionNow(
   const event = await logEvent(detectedEvent, auth.activeClientId)
   log("event logged — id:", event.id)
 
-  log("POST /decisions —", payload.decisionType, "summary:", payload.summary, "contextKey:", payload.contextKey ?? "none")
+  log("POST /decisions —", payload.decisionType, "summary:", payload.summary, "contextCategory:", payload.contextCategory)
   const decision = await createDecision(payload, auth.activeClientId, event.id)
   log("decision created — id:", decision.id, "status:", decision.status, "recommendation:", decision.recommendation?.recommendation ?? "none")
 

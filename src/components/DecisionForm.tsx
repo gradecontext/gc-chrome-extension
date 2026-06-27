@@ -1,28 +1,17 @@
 import React, { useEffect, useState } from "react"
 import { sendToBackground } from "~lib/messaging"
-import { getContexts, reviewDecision } from "~services/api"
+import { getContextCategories, getDecisionTypes, reviewDecision } from "~services/api"
 import type {
-  DecisionContext,
+  ContextCategory,
   DecisionPayload,
   DecisionRecommendation,
-  DecisionType,
+  DecisionTypeOption,
   DetectedEvent,
   ReviewAction
 } from "~types"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 import { Textarea } from "./ui/Textarea"
-
-const DECISION_TYPES: { value: DecisionType; label: string }[] = [
-  { value: "CUSTOM", label: "Custom" },
-  { value: "DISCOUNT", label: "Discount Approval" },
-  { value: "ONBOARDING", label: "Onboarding" },
-  { value: "PAYMENT_TERMS", label: "Payment Terms" },
-  { value: "CREDIT_EXTENSION", label: "Credit Extension" },
-  { value: "RENEWAL", label: "Renewal" },
-  { value: "ESCALATION", label: "Escalation" },
-  { value: "PARTNERSHIP", label: "Partnership" }
-]
 
 const SITE_LABEL: Record<string, string> = {
   figma: "Figma",
@@ -47,9 +36,10 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
   const [step, setStep] = useState<"form" | "recommendation">("form")
 
   // Form fields
-  const [contexts, setContexts] = useState<DecisionContext[]>([])
-  const [contextKey, setContextKey] = useState("")
-  const [decisionType, setDecisionType] = useState<DecisionType>("CUSTOM")
+  const [contextCategories, setContextCategories] = useState<ContextCategory[]>([])
+  const [contextCategory, setContextCategory] = useState("")
+  const [decisionTypes, setDecisionTypes] = useState<DecisionTypeOption[]>([])
+  const [decisionType, setDecisionType] = useState("")
   const [decision, setDecision] = useState("")
   const [rationale, setRationale] = useState("")
   const [saving, setSaving] = useState(false)
@@ -63,15 +53,29 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
   const [reviewError, setReviewError] = useState("")
 
   useEffect(() => {
-    getContexts(clientId).then(setContexts).catch(() => {})
+    getContextCategories(clientId).then(setContextCategories).catch(() => {})
 
-    const type = event.eventType.toLowerCase()
-    if (type.includes("discount")) setDecisionType("DISCOUNT")
-    else if (type.includes("onboard")) setDecisionType("ONBOARDING")
-    else if (type.includes("renewal")) setDecisionType("RENEWAL")
-    else if (type.includes("escalat")) setDecisionType("ESCALATION")
-    else if (type.includes("partner")) setDecisionType("PARTNERSHIP")
-    else if (type.includes("payment")) setDecisionType("PAYMENT_TERMS")
+    getDecisionTypes(clientId)
+      .then((types) => {
+        setDecisionTypes(types)
+
+        const type = event.eventType.toLowerCase()
+        const guess =
+          (type.includes("discount") && "DISCOUNT") ||
+          (type.includes("onboard") && "ONBOARDING") ||
+          (type.includes("renewal") && "RENEWAL") ||
+          (type.includes("escalat") && "ESCALATION") ||
+          (type.includes("partner") && "PARTNERSHIP") ||
+          (type.includes("payment") && "PAYMENT_TERMS") ||
+          ""
+
+        const active = types.filter((t) => t.active)
+        const match =
+          active.find((t) => t.decision_type === guess) ??
+          active.find((t) => t.decision_type === "CUSTOM")
+        if (match) setDecisionType(match.decision_type)
+      })
+      .catch(() => {})
   }, [clientId, event.eventType])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -85,6 +89,14 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
       setFormError("Add the reasoning — this is what makes the record valuable later.")
       return
     }
+    if (!contextCategory) {
+      setFormError("Select a context category.")
+      return
+    }
+    if (!decisionType) {
+      setFormError("Select a decision type.")
+      return
+    }
     if (!event.sourceCompanyExternalId) {
       setFormError("This site isn't registered as a tracked source. Add it from the ContextGrade dashboard first.")
       return
@@ -95,7 +107,7 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
 
     const payload: DecisionPayload = {
       decisionType,
-      contextKey: contextKey || undefined,
+      contextCategory,
       summary: decision.trim(),
       // Note content: decision title + why — sent inline in POST /decisions
       rationale: `${decision.trim()}\n\nWhy: ${rationale.trim()}`,
@@ -243,36 +255,45 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       <SourceRow event={event} />
 
-      {/* Context */}
-      {contexts.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-gray-700">Context</label>
-          <select
-            value={contextKey}
-            onChange={(e) => setContextKey(e.target.value)}
-            className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
-            <option value="">— None —</option>
-            {contexts.map((ctx) => (
-              <option key={ctx.id} value={ctx.key}>
-                {ctx.name}
+      {/* Context category */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-gray-700">Context category</label>
+        <select
+          value={contextCategory}
+          onChange={(e) => setContextCategory(e.target.value)}
+          required
+          className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+          <option value="" disabled>
+            Select a category…
+          </option>
+          {contextCategories
+            .filter((c) => c.active)
+            .map((c) => (
+              <option key={c.id} value={c.category}>
+                {c.label || c.category}
               </option>
             ))}
-          </select>
-        </div>
-      )}
+        </select>
+      </div>
 
       {/* Decision type */}
       <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-gray-700">Decision type</label>
         <select
           value={decisionType}
-          onChange={(e) => setDecisionType(e.target.value as DecisionType)}
+          onChange={(e) => setDecisionType(e.target.value)}
+          required
           className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
-          {DECISION_TYPES.map((dt) => (
-            <option key={dt.value} value={dt.value}>
-              {dt.label}
-            </option>
-          ))}
+          <option value="" disabled>
+            Select a type…
+          </option>
+          {decisionTypes
+            .filter((dt) => dt.active)
+            .map((dt) => (
+              <option key={dt.id} value={dt.decision_type}>
+                {dt.label || dt.decision_type}
+              </option>
+            ))}
         </select>
       </div>
 

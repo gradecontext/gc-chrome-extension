@@ -25,8 +25,8 @@ export interface DetectedEvent {
 // ─── Decision payload — sent via SAVE_DECISION background message ─────────────
 
 export interface DecisionPayload {
-  decisionType: DecisionType
-  contextKey?: string
+  decisionType: string
+  contextCategory: string
   summary: string          // "What was decided?" — becomes the decision title
   rationale?: string       // "Why?" — sent inline as note.content alongside summary
   externalId: string       // pre-registered SubjectCompany.external_id (e.g. "figma.com")
@@ -53,16 +53,6 @@ export interface SubjectCompanySource {
 
 // ─── Enums matching backend schema ───────────────────────────────────────────
 
-export type DecisionType =
-  | "DISCOUNT"
-  | "ONBOARDING"
-  | "PAYMENT_TERMS"
-  | "CREDIT_EXTENSION"
-  | "PARTNERSHIP"
-  | "RENEWAL"
-  | "ESCALATION"
-  | "CUSTOM"
-
 export type DecisionStatus =
   | "PROPOSED"
   | "PENDING_REVIEW"
@@ -74,15 +64,30 @@ export type DecisionStatus =
 
 export type ReviewAction = "approve" | "reject" | "escalate" | "override"
 
-// ─── Contexts (dropdown options) ──────────────────────────────────────────────
+// ─── Decision types (dropdown options) ────────────────────────────────────────
 
-export interface DecisionContext {
+export interface DecisionTypeOption {
   id: string
-  key: string
-  name: string
-  description: string | null
-  category: string
+  client_id: number
+  decision_type: string
+  label: string | null
+  is_reserved: boolean
   active: boolean
+  created_at: string
+  updated_at: string
+}
+
+// ─── Context categories (dropdown options) ────────────────────────────────────
+
+export interface ContextCategory {
+  id: string
+  client_id: number
+  category: string
+  label: string | null
+  is_reserved: boolean
+  active: boolean
+  created_at: string
+  updated_at: string
 }
 
 // ─── AI recommendation returned with every decision ───────────────────────────
@@ -185,8 +190,8 @@ export interface ApiDecisionResponse {
   id: string
   client_id: number
   status: DecisionStatus
-  decision_type: DecisionType
-  context_key: string | null
+  decision_type: string
+  context_category: string
   summary: string
   urgency: "NORMAL" | "HIGH" | "CRITICAL"
   recommended_action: "APPROVE" | "REJECT" | "ESCALATE" | null
