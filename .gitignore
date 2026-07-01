@@ -5,3 +5,5 @@ build/
 .env.development
 .env.production
 *.pem
+.DS_Store
+**/.DS_Store
