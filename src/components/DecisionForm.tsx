@@ -19,9 +19,9 @@ const SITE_LABEL: Record<string, string> = {
   hubspot: "HubSpot"
 }
 
-const SITE_COLOR: Record<string, "green" | "indigo" | "amber"> = {
+const SITE_COLOR: Record<string, "green" | "accent" | "amber"> = {
   figma: "green",
-  jira: "indigo",
+  jira: "accent",
   hubspot: "amber"
 }
 
@@ -262,7 +262,7 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
           value={contextCategory}
           onChange={(e) => setContextCategory(e.target.value)}
           required
-          className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+          className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent transition">
           <option value="" disabled>
             Select a category…
           </option>
@@ -283,7 +283,7 @@ export function DecisionForm({ event, clientId, onSuccess, onCancel }: DecisionF
           value={decisionType}
           onChange={(e) => setDecisionType(e.target.value)}
           required
-          className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition">
+          className="w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent transition">
           <option value="" disabled>
             Select a type…
           </option>

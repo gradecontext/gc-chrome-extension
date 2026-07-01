@@ -1,6 +1,8 @@
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
+import logoWhite from "../assets/logos/context-grade-logo-white.svg"
 import "./style.css"
 import { DecisionForm } from "~components/DecisionForm"
+import { FirstRunDisclosure } from "~components/FirstRunDisclosure"
 import { SignInPrompt } from "~components/SignInPrompt"
 import { Badge } from "~components/ui/Badge"
 import { Button } from "~components/ui/Button"
@@ -8,6 +10,10 @@ import { useAuth } from "~hooks/useAuth"
 import { usePendingEvent, useSavedDecision } from "~hooks/useDecision"
 import { getTrackedSources, matchSource } from "~hooks/useTrackedSource"
 import { generateId, detectSiteFromUrl } from "~lib/utils"
+import {
+  getDisclosureAcknowledged,
+  setDisclosureAcknowledged
+} from "~lib/storage"
 import type { DetectedEvent } from "~types"
 
 function SidePanel() {
@@ -17,6 +23,11 @@ function SidePanel() {
   const [manualEvent, setManualEvent] = useState<DetectedEvent | null>(null)
   const [manualError, setManualError] = useState("")
   const [resolvingManual, setResolvingManual] = useState(false)
+  const [disclosureAcknowledged, setDisclosureAcknowledgedState] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    getDisclosureAcknowledged().then(setDisclosureAcknowledgedState)
+  }, [])
 
   async function startManualEntry() {
     if (!activeClientId) return
@@ -62,10 +73,23 @@ function SidePanel() {
   // Manual entry takes priority over storage-based pending event
   const activeEvent = manualEvent ?? pendingEvent
 
-  if (loading) {
+  if (loading || disclosureAcknowledged === null) {
     return (
       <div className="flex items-center justify-center h-full">
-        <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!disclosureAcknowledged) {
+    return (
+      <div className="flex flex-col h-full font-sans">
+        <FirstRunDisclosure
+          onAcknowledge={async () => {
+            await setDisclosureAcknowledged()
+            setDisclosureAcknowledgedState(true)
+          }}
+        />
       </div>
     )
   }
@@ -144,9 +168,9 @@ function SidePanel() {
       <SidePanelHeader onAdd={startManualEntry} />
       <ManualErrorBanner message={manualError} />
       <div className="flex flex-col items-center justify-center flex-1 gap-4 p-6 text-center">
-        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-accent-50 flex items-center justify-center">
           <svg
-            className="w-5 h-5 text-indigo-400"
+            className="w-5 h-5 text-accent-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -190,24 +214,17 @@ function SidePanelHeader({
 }) {
   return (
     <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-white flex-shrink-0">
-      <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-        <svg
-          className="w-3.5 h-3.5 text-white"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-        </svg>
+      <div className="w-6 h-6 rounded-lg bg-accent-600 flex items-center justify-center flex-shrink-0">
+        <img src={logoWhite} alt="" className="w-3.5 h-3.5" />
       </div>
       <span className="text-sm font-semibold text-gray-900">ContextGrade</span>
       <div className="ml-auto flex items-center gap-3">
-        {pendingCount ? <Badge color="indigo">Decision detected</Badge> : null}
+        {pendingCount ? <Badge color="accent">Decision detected</Badge> : null}
         {onAdd ? (
           <button
             onClick={onAdd}
             title="Log a decision manually"
-            className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors">
+            className="flex items-center gap-1 text-xs font-medium text-accent-600 hover:text-accent-700 transition-colors">
             <svg
               className="w-3.5 h-3.5"
               fill="none"

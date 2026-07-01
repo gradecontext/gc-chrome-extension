@@ -6,7 +6,9 @@ export const STORAGE_KEYS = {
   // Raw session written by content script, consumed + cleared by background
   RAW_SESSION: "cg_raw_session",
   // Cached GET /decisions/subject-companies response, used to gate icon visibility
-  SOURCES_CACHE: "cg_sources_cache"
+  SOURCES_CACHE: "cg_sources_cache",
+  // Set once when the user acknowledges the first-run privacy disclosure
+  DISCLOSURE_ACKNOWLEDGED: "cg_disclosure_ack"
 } as const
 
 export const DEFAULT_SETTINGS = {

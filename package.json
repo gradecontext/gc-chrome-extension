@@ -1,6 +1,6 @@
 {
   "name": "contextgrade-extension",
-  "displayName": "ContextGrade",
+  "displayName": "ContextGrade: Turn decisions to context for your LLM",
   "version": "0.1.0",
   "description": "Decision memory layer for work applications — capture reasoning behind business decisions in Jira, Figma, and HubSpot.",
   "scripts": {

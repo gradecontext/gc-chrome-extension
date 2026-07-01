@@ -1,4 +1,5 @@
 import React from "react"
+import logoWhite from "../../assets/logos/context-grade-logo-white.svg"
 import { WEBAPP_URL } from "~lib/constants"
 import { Button } from "./ui/Button"
 
@@ -14,9 +15,9 @@ export function SignInPrompt({ compact = false }: SignInPromptProps) {
   if (compact) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 p-6 text-center">
-        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-accent-50 flex items-center justify-center">
           <svg
-            className="w-5 h-5 text-indigo-400"
+            className="w-5 h-5 text-accent-400"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -45,15 +46,8 @@ export function SignInPrompt({ compact = false }: SignInPromptProps) {
     <div className="flex flex-col gap-4 p-4">
       {/* Logo mark */}
       <div className="flex items-center gap-2">
-        <div className="w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center">
-          <svg
-            className="w-4 h-4 text-white"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+        <div className="w-7 h-7 rounded-lg bg-accent-600 flex items-center justify-center">
+          <img src={logoWhite} alt="" className="w-4 h-4" />
         </div>
         <span className="text-sm font-bold text-gray-900">ContextGrade</span>
       </div>

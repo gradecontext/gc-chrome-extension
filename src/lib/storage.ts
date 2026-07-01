@@ -89,6 +89,16 @@ export async function getPendingQueueCount(): Promise<number> {
   return queue.filter((d) => d.status === "pending" || d.status === "failed").length
 }
 
+// ─── First-run disclosure ─────────────────────────────────────────────────────
+
+export async function getDisclosureAcknowledged(): Promise<boolean> {
+  return (await storage.get<boolean>(STORAGE_KEYS.DISCLOSURE_ACKNOWLEDGED)) ?? false
+}
+
+export async function setDisclosureAcknowledged(): Promise<void> {
+  await storage.set(STORAGE_KEYS.DISCLOSURE_ACKNOWLEDGED, true)
+}
+
 // ─── Tracked sources cache (GET /decisions/subject-companies) ────────────────
 
 interface SourcesCache {

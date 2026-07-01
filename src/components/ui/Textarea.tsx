@@ -25,7 +25,7 @@ export function Textarea({
       )}
       <textarea
         id={fieldId}
-        className={`w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition resize-none ${className}`}
+        className={`w-full text-sm rounded-lg border border-gray-200 bg-white px-3 py-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-accent-500 focus:border-transparent transition resize-none ${className}`}
         {...props}
       />
       {hint && !error && <p className="text-xs text-gray-400">{hint}</p>}

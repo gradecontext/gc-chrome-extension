@@ -5,8 +5,8 @@ import type { DetectedEvent } from "~types"
 import { Badge } from "./ui/Badge"
 import { Button } from "./ui/Button"
 
-const SITE_COLORS: Record<string, "indigo" | "green" | "amber"> = {
-  jira: "indigo",
+const SITE_COLORS: Record<string, "accent" | "green" | "amber"> = {
+  jira: "accent",
   figma: "green",
   hubspot: "amber"
 }
@@ -53,18 +53,18 @@ export function FloatingPrompt({ event, onDismiss, onSaved }: FloatingPromptProp
     setTimeout(() => { onDismiss(); onSaved?.() }, 300)
   }
 
-  const siteColor = SITE_COLORS[event.site] ?? "indigo"
+  const siteColor = SITE_COLORS[event.site] ?? "accent"
   const siteLabel = SITE_LABELS[event.site] ?? event.site
   const eventLabel = labelFromEventType(event.eventType)
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-[2147483647] font-sans transition-all duration-300 ease-out ${
+      className={`fixed bottom-[22%] right-6 z-[2147483647] font-sans transition-all duration-300 ease-out ${
         visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
       }`}>
-      <div className="bg-white border border-gray-200 rounded-2xl shadow-2xl w-80 overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-panel w-80 overflow-hidden">
         {/* Header stripe */}
-        <div className="h-1 bg-gradient-to-r from-indigo-500 to-violet-500" />
+        <div className="h-1 bg-gradient-accent" />
 
         <div className="p-4">
           {/* Site + event label */}

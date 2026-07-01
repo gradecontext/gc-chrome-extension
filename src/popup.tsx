@@ -1,41 +1,37 @@
 import React, { useEffect, useState } from "react"
+import logoWhite from "../assets/logos/context-grade-logo-white.svg"
 import "./style.css"
+import { FirstRunDisclosure } from "~components/FirstRunDisclosure"
 import { SignInPrompt } from "~components/SignInPrompt"
 import { Badge } from "~components/ui/Badge"
-import { Button } from "~components/ui/Button"
-import { Input } from "~components/ui/Input"
 import { useAuth } from "~hooks/useAuth"
 import { getTrackedSources } from "~hooks/useTrackedSource"
-import { getSettings, getPendingQueueCount, saveSettings } from "~lib/storage"
+import {
+  getSettings,
+  getPendingQueueCount,
+  saveSettings,
+  getDisclosureAcknowledged,
+  setDisclosureAcknowledged
+} from "~lib/storage"
 import type { ExtensionSettings, SubjectCompanySource } from "~types"
 
 function Popup() {
   const { isAuthenticated, user, displayName, memberships, activeClientId, loading } = useAuth()
   const [settings, setSettings] = useState<ExtensionSettings | null>(null)
-  const [apiUrl, setApiUrl] = useState("")
   const [queueCount, setQueueCount] = useState(0)
-  const [saved, setSaved] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [sources, setSources] = useState<SubjectCompanySource[]>([])
+  const [disclosureAcknowledged, setDisclosureAcknowledgedState] = useState<boolean | null>(null)
 
   useEffect(() => {
-    getSettings().then((s) => {
-      setSettings(s)
-      setApiUrl(s.apiUrl)
-    })
+    getSettings().then(setSettings)
     getPendingQueueCount().then(setQueueCount)
+    getDisclosureAcknowledged().then(setDisclosureAcknowledgedState)
   }, [])
 
   useEffect(() => {
     if (!activeClientId) return
     getTrackedSources(activeClientId).then(setSources).catch(() => {})
   }, [activeClientId])
-
-  async function handleSaveSettings() {
-    await saveSettings({ apiUrl })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
 
   async function toggleEnabled() {
     if (!settings) return
@@ -47,10 +43,23 @@ function Popup() {
   const activeSources = sources.filter((s) => s.active)
 
   // Only block on auth loading — settings have a safe default so they never hang
-  if (loading) {
+  if (loading || disclosureAcknowledged === null) {
     return (
       <div className="w-72 flex items-center justify-center py-10">
-        <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-4 h-4 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!disclosureAcknowledged) {
+    return (
+      <div className="w-72 h-[480px] font-sans">
+        <FirstRunDisclosure
+          onAcknowledge={async () => {
+            await setDisclosureAcknowledged()
+            setDisclosureAcknowledgedState(true)
+          }}
+        />
       </div>
     )
   }
@@ -67,17 +76,15 @@ function Popup() {
     <div className="w-72 font-sans text-gray-900 bg-white">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-        <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center flex-shrink-0">
-          <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+        <div className="w-6 h-6 rounded-lg bg-accent-600 flex items-center justify-center flex-shrink-0">
+          <img src={logoWhite} alt="" className="w-3.5 h-3.5" />
         </div>
         <span className="text-sm font-bold text-gray-900">ContextGrade</span>
         <div className="ml-auto">
           <button
             onClick={toggleEnabled}
             className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-              settings.enabled ? "bg-indigo-600" : "bg-gray-200"
+              settings.enabled ? "bg-accent-600" : "bg-gray-200"
             }`}>
             <span
               className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
@@ -91,8 +98,8 @@ function Popup() {
       <div className="p-4 flex flex-col gap-4">
         {/* User info */}
         <div className="flex items-center gap-3 py-2 px-3 bg-gray-50 rounded-xl">
-          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-sm font-semibold text-indigo-700">
+          <div className="w-8 h-8 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-semibold text-accent-700">
               {(displayName ?? user?.email ?? "?")[0].toUpperCase()}
             </span>
           </div>
@@ -136,37 +143,6 @@ function Popup() {
           <p className="text-xs text-gray-400 mt-1">
             Managed by your admin on the ContextGrade dashboard.
           </p>
-        </div>
-
-        {/* Advanced settings */}
-        <div className="border-t border-gray-100 pt-3">
-          <button
-            onClick={() => setSettingsOpen((o) => !o)}
-            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            <svg
-              className={`w-3 h-3 transition-transform ${settingsOpen ? "rotate-90" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-            Advanced
-          </button>
-
-          {settingsOpen && (
-            <div className="flex flex-col gap-3 mt-3">
-              <Input
-                label="API URL"
-                value={apiUrl}
-                onChange={(e) => setApiUrl(e.target.value)}
-                placeholder="http://localhost:3000/api"
-              />
-              <Button size="sm" onClick={handleSaveSettings}>
-                {saved ? "Saved!" : "Save"}
-              </Button>
-            </div>
-          )}
         </div>
       </div>
     </div>
