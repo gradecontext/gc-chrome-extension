@@ -11,7 +11,8 @@ import {
   getPendingQueueCount,
   saveSettings,
   getDisclosureAcknowledged,
-  setDisclosureAcknowledged
+  setDisclosureAcknowledged,
+  clearCachedSources
 } from "~lib/storage"
 import type { ExtensionSettings, SubjectCompanySource } from "~types"
 
@@ -20,6 +21,7 @@ function Popup() {
   const [settings, setSettings] = useState<ExtensionSettings | null>(null)
   const [queueCount, setQueueCount] = useState(0)
   const [sources, setSources] = useState<SubjectCompanySource[]>([])
+  const [refreshing, setRefreshing] = useState(false)
   const [disclosureAcknowledged, setDisclosureAcknowledgedState] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -32,6 +34,16 @@ function Popup() {
     if (!activeClientId) return
     getTrackedSources(activeClientId).then(setSources).catch(() => {})
   }, [activeClientId])
+
+  async function handleRefresh() {
+    if (!activeClientId || refreshing) return
+    setRefreshing(true)
+    await clearCachedSources()
+    getTrackedSources(activeClientId)
+      .then(setSources)
+      .catch(() => {})
+      .finally(() => setRefreshing(false))
+  }
 
   async function toggleEnabled() {
     if (!settings) return
@@ -125,9 +137,30 @@ function Popup() {
 
         {/* Tracked sites — admin-managed, read-only here */}
         <div className="flex flex-col gap-1">
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-            Tracked sites
-          </p>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+              Tracked sites
+            </p>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              title="Refresh tracked sites"
+              className="text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors"
+            >
+              <svg
+                className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+                <path d="M21 3v5h-5" />
+              </svg>
+            </button>
+          </div>
           {activeSources.length === 0 ? (
             <p className="text-xs text-gray-400">
               No sites registered yet. Add one from the ContextGrade dashboard.

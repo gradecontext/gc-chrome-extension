@@ -113,3 +113,7 @@ export async function getCachedSources(): Promise<SourcesCache | null> {
 export async function setCachedSources(sources: SubjectCompanySource[]): Promise<void> {
   await storage.set(STORAGE_KEYS.SOURCES_CACHE, { sources, fetchedAt: Date.now() })
 }
+
+export async function clearCachedSources(): Promise<void> {
+  await storage.remove(STORAGE_KEYS.SOURCES_CACHE)
+}

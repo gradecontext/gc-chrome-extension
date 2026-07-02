@@ -391,6 +391,36 @@ context; the backend builds memory. Together they create the Context Graph.
 
 ---
 
+# Versioning
+
+The version lives in one place: the `version` field in [package.json](package.json). Plasmo reads it from there and injects it into the generated `manifest.json` — do not set a version anywhere else.
+
+**Bump the version on every code change, no exceptions.** Use [semver](https://semver.org/):
+
+| Change type | Example | Bump |
+|---|---|---|
+| Bug fix, copy tweak, minor style change | Fix FloatingPrompt dismiss timer | patch (`0.1.0` → `0.1.1`) |
+| New feature, new detector, new UI surface | Add Figma detector | minor (`0.1.1` → `0.2.0`) |
+| Breaking change to storage schema or message protocol | Rename storage key | major (`0.2.0` → `1.0.0`) |
+
+When in doubt, patch. A missed minor is fine; a missing bump causes Chrome to silently skip the update for existing installs.
+
+---
+
+# Release Process
+
+There is no CI/CD pipeline for Chrome Web Store publishing — it is a manual process today:
+
+1. Bump `version` in `package.json` (see Versioning above).
+2. Run `pnpm build` — output goes to `build/chrome-mv3-prod/`.
+3. Run `pnpm package` — Plasmo zips the build into a `.zip` in the project root.
+4. Go to the [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole), open the extension listing, click **Upload new package**, and upload the `.zip`.
+5. Fill in release notes, then submit for review. Chrome review typically takes 1–3 business days.
+
+Automating this (e.g. via GitHub Actions + `chrome-webstore-upload-cli`) is possible once the listing is stable enough to warrant it — the blocker is that the Web Store API requires OAuth credentials scoped to the publisher account.
+
+---
+
 # Engineering Principle
 
 Optimize for: signal quality, maintainability, explainability.
